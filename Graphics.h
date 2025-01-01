@@ -12,14 +12,7 @@ public:
 	Graphics& operator = (const Graphics&) = delete;
 	~Graphics();
 	void EndFrame();
-	void ClearBuffer(float red, float green, float blue) noexcept
-	{
-		// The fourth value (1.0f) represents the alpha channel (fully opaque).
-		const float color[] = { red, green, blue, 1.0f };
-
-		// Clears the render target (the area where rendering is performed) with the specified color.
-		pContext->ClearRenderTargetView(pTarget, color);
-	}
+	void ClearBuffer(float red, float green, float blue) noexcept;
 private:
 	ID3D11Device* pDevice = nullptr; // Represents the Direct3D device used to manage GPU resources.
 	IDXGISwapChain* pSwap = nullptr; // Manages the swap chain for presenting frames to the screen.

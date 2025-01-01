@@ -75,3 +75,12 @@ void Graphics::EndFrame()
 {
 	pSwap->Present(1u, 0u);
 }
+
+void Graphics::ClearBuffer(float red, float green, float blue) noexcept
+{
+	// The fourth value (1.0f) represents the alpha channel (fully opaque).
+	const float color[] = { red, green, blue, 1.0f };
+
+	// Clears the render target (the area where rendering is performed) with the specified color.
+	pContext->ClearRenderTargetView(pTarget, color);
+}
