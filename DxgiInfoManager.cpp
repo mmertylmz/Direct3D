@@ -24,15 +24,10 @@ DxgiInfoManager::DxgiInfoManager()
 		throw CHWND_LAST_EXCEPT();
 	}
 	HRESULT hr;
-	GFX_THROW_NOINFO(DxgiGetDebugInterface(__uuidof(IDXGIInfoQueue), reinterpret_cast<void**>(&pDxgiInfoQueue)));
+	
+	GFX_THROW_NOINFO(DxgiGetDebugInterface(__uuidof(IDXGIInfoQueue), &pDxgiInfoQueue));
 }
-DxgiInfoManager::~DxgiInfoManager()
-{
-	if (pDxgiInfoQueue != nullptr)
-	{
-		pDxgiInfoQueue->Release();
-	}
-}
+
 void DxgiInfoManager::Set() noexcept
 {
 	// set the index (next) so that the next all to GetMessages()
