@@ -4,12 +4,22 @@
 
 #pragma comment(lib, "d3d11.lib") //prevent linker error
 
-#define GFX_THROW_FAILED(hrcall) if( FAILED( hr = (hrcall) ) ) throw Graphics::HrException( __LINE__,__FILE__,hr )
+// graphics exception checking/throwing macros (some with dxgi infos)
+#define GFX_EXCEPT_NOINFO(hr) Graphics::HrException( __LINE__,__FILE__,(hr) )
+#define GFX_THROW_NOINFO(hrcall) if( FAILED( hr = (hrcall) ) ) throw Graphics::HrException( __LINE__,__FILE__,hr )
+#ifndef NDEBUG
+#define GFX_EXCEPT(hr) Graphics::HrException( __LINE__,__FILE__,(hr),infoManager.GetMessages() )
+#define GFX_THROW_INFO(hrcall) infoManager.Set(); if( FAILED( hr = (hrcall) ) ) throw GFX_EXCEPT(hr)
+#define GFX_DEVICE_REMOVED_EXCEPT(hr) Graphics::DeviceRemovedException( __LINE__,__FILE__,(hr),infoManager.GetMessages() )
+#else
+#define GFX_EXCEPT(hr) Graphics::HrException( __LINE__,__FILE__,(hr) )
+#define GFX_THROW_INFO(hrcall) GFX_THROW_NOINFO(hrcall)
 #define GFX_DEVICE_REMOVED_EXCEPT(hr) Graphics::DeviceRemovedException( __LINE__,__FILE__,(hr) )
+#endif
 
 Graphics::Graphics(HWND hWnd)
 {
-	DXGI_SWAP_CHAIN_DESC sd ={};
+	DXGI_SWAP_CHAIN_DESC sd = {};
 	sd.BufferDesc.Width = 0; // The width of the render target (default: match window size)
 	sd.BufferDesc.Height = 0; //The height of the render target (default: match window size)
 	sd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; //The format for the back buffer (8-bit BGR + alpha channel)
@@ -20,20 +30,25 @@ Graphics::Graphics(HWND hWnd)
 	sd.SampleDesc.Quality = 0; //Quality level of multisampling (0 for default)
 	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; //Specifies the buffer usage (used as a render target)
 	sd.BufferCount = 1; //Number of buffers (1 for double buffering)
-	sd.OutputWindow = (HWND)696969; //Handle to the window where Directx output will be displayed
+	sd.OutputWindow = hWnd; //Handle to the window where Directx output will be displayed
 	sd.Windowed = TRUE; //Window mode (TRUE for windowed mode, FALSE for fullscreen mode)
 	sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; //Specifies the swap effect (discard the back buffer content)
 	sd.Flags = 0; //Additional flags for the swap chain (none specified here)
+
+	UINT swapCreateFlags = 0u;
+#ifndef NDEBUG
+	swapCreateFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
 
 	//for checking results of d3d functions
 	HRESULT hr;
 
 	//create device and front/back buffers, and swap chain and rendering context
-	GFX_THROW_FAILED(D3D11CreateDeviceAndSwapChain(
+	GFX_THROW_INFO(D3D11CreateDeviceAndSwapChain(
 		nullptr,                     // Adapter: nullptr means the default adapter will be used.
 		D3D_DRIVER_TYPE_HARDWARE,    // DriverType: Use the GPU hardware for rendering.
 		nullptr,                     // Software: Not used because hardware rendering is specified.
-		0,                           // Flags: No special flags for device creation.
+		swapCreateFlags,             // Flags: No special flags for device creation.
 		nullptr,                     // FeatureLevels: Use the default set of feature levels.
 		0,                           // FeatureLevelsCount: Number of elements in the FeatureLevels array (0 here).
 		D3D11_SDK_VERSION,           // SDKVersion: Specifies the Direct3D 11 version.
@@ -46,20 +61,20 @@ Graphics::Graphics(HWND hWnd)
 
 	//gain access to texture subresource in swap chain (back buffer)
 	ID3D11Resource* pBackBuffer = nullptr;
-	GFX_THROW_FAILED(pSwap->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&pBackBuffer)));
-	GFX_THROW_FAILED(pDevice->CreateRenderTargetView(pBackBuffer, nullptr, &pTarget));
+	GFX_THROW_INFO(pSwap->GetBuffer(0, __uuidof(ID3D11Resource), reinterpret_cast<void**>(&pBackBuffer)));
+	GFX_THROW_INFO(pDevice->CreateRenderTargetView(pBackBuffer, nullptr, &pTarget));
 
 	pBackBuffer->Release();
 }
 
 Graphics::~Graphics()
 {
-	if(pTarget != nullptr)
+	if (pTarget != nullptr)
 	{
 		pTarget->Release();
 	}
 
-	if(pContext != nullptr)
+	if (pContext != nullptr)
 	{
 		pContext->Release();
 	}
@@ -69,7 +84,7 @@ Graphics::~Graphics()
 		pSwap->Release();
 	}
 
-	if(pDevice != nullptr)
+	if (pDevice != nullptr)
 	{
 		pDevice->Release();
 	}
@@ -78,6 +93,11 @@ Graphics::~Graphics()
 void Graphics::EndFrame()
 {
 	HRESULT hr;
+
+#ifndef NDEBUG
+	infoManager.Set();
+#endif
+
 	if (FAILED(hr = pSwap->Present(1u, 0u)))
 	{
 		if (hr == DXGI_ERROR_DEVICE_REMOVED)
@@ -86,7 +106,7 @@ void Graphics::EndFrame()
 		}
 		else
 		{
-			GFX_THROW_FAILED(hr);
+			throw GFX_EXCEPT(hr);
 		}
 	}
 }
@@ -101,11 +121,22 @@ void Graphics::ClearBuffer(float red, float green, float blue) noexcept
 }
 
 // Graphics exception stuff
-Graphics::HrException::HrException(int line, const char* file, HRESULT hr) noexcept
+Graphics::HrException::HrException(int line, const char* file, HRESULT hr, std::vector<std::string> infoMsgs) noexcept
 	:
 	Exception(line, file),
 	hr(hr)
 {
+	// join all info messages with newlines into single string
+	for (const auto& m : infoMsgs)
+	{
+		info += m;
+		info.push_back('\n');
+	}
+	// remove final newline if exists
+	if (!info.empty())
+	{
+		info.pop_back();
+	}
 }
 const char* Graphics::HrException::what() const noexcept
 {
@@ -114,30 +145,44 @@ const char* Graphics::HrException::what() const noexcept
 		<< "[Error Code] 0x" << std::hex << std::uppercase << GetErrorCode()
 		<< std::dec << " (" << (unsigned long)GetErrorCode() << ")" << std::endl
 		<< "[Error String] " << GetErrorString() << std::endl
-		<< "[Description] " << GetErrorDescription() << std::endl
-		<< GetOriginString();
+		<< "[Description] " << GetErrorDescription() << std::endl;
+	if (!info.empty())
+	{
+		oss << "\n[Error Info]\n" << GetErrorInfo() << std::endl << std::endl;
+	}
+	oss << GetOriginString();
 	whatBuffer = oss.str();
 	return whatBuffer.c_str();
 }
+
 const char* Graphics::HrException::GetType() const noexcept
 {
-	return "Chili Graphics Exception";
+	return "Directx Graphics Exception";
 }
+
 HRESULT Graphics::HrException::GetErrorCode() const noexcept
 {
 	return hr;
 }
+
 std::string Graphics::HrException::GetErrorString() const noexcept
 {
 	return DXGetErrorString(hr);
 }
+
 std::string Graphics::HrException::GetErrorDescription() const noexcept
 {
 	char buf[512];
 	DXGetErrorDescription(hr, buf, sizeof(buf));
 	return buf;
 }
+
+std::string Graphics::HrException::GetErrorInfo() const noexcept
+{
+	return info;
+}
+
 const char* Graphics::DeviceRemovedException::GetType() const noexcept
 {
-	return "Chili Graphics Exception [Device Removed] (DXGI_ERROR_DEVICE_REMOVED)";
+	return "Directx Graphics Exception [Device Removed] (DXGI_ERROR_DEVICE_REMOVED)";
 }
