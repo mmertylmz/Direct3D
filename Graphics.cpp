@@ -141,7 +141,7 @@ void Graphics::DrawTestTriangle()
 	// Bind the vertex buffer to the Input Assembler stage of the GPU pipeline.
 	const UINT stride = sizeof(Vertex);			// Size of a single vertex in the buffer.
 	const UINT offset = 0u;						// Offset to the start of the vertex data.
-	pContext->IASetVertexBuffers(0u, 1u, &pVertexBuffer, &stride, &offset);
+	pContext->IASetVertexBuffers(0u, 1u, pVertexBuffer.GetAddressOf(), &stride, &offset);
 
 	// create vertex shader
 	wrl::ComPtr<ID3D11VertexShader> pVertexShader;
@@ -159,6 +159,19 @@ void Graphics::DrawTestTriangle()
 
 	// bind pixel shader
 	pContext->PSSetShader(pPixelShader.Get(), nullptr, 0u);
+
+	// bind render target
+	pContext->OMSetRenderTargets(1u, pTarget.GetAddressOf(), nullptr);
+
+	// configure viewport
+	D3D11_VIEWPORT vp;
+	vp.Width = 800;
+	vp.Height = 600;
+	vp.MinDepth = 0;
+	vp.MaxDepth = 1;
+	vp.TopLeftX = 0;
+	vp.TopLeftY = 0;
+	pContext->RSSetViewports(1u, &vp);
 
 	GFX_THROW_INFO_ONLY(pContext->Draw((UINT)std::size(vertices), 0u));
 
