@@ -32,6 +32,7 @@ Graphics::Graphics(HWND hWnd)
 	sd.BufferDesc.RefreshRate.Numerator = 0; //Refresh rate numerator (0 for automatic configuration)
 	sd.BufferDesc.RefreshRate.Denominator = 0; //Refresh rate denominator (0 for automatic configuration) => Manuel Example: Numerator = 60; Denominator = 1 => 60/1 = 60 Hz
 	sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED; //Scaling mode for the buffer (unspecified, default behaviour)
+	sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
 	sd.SampleDesc.Count = 1; //Number of multisample counts (1 means no multisampling)
 	sd.SampleDesc.Quality = 0; //Quality level of multisampling (0 for default)
 	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; //Specifies the buffer usage (used as a render target)
@@ -115,9 +116,9 @@ void Graphics::DrawTestTriangle()
 	//create vertex buffer (1 2d triangle at center of screen)
 	const Vertex vertices[] =
 	{
-		{ 0.0f, 0.5f },		
-		{ -0.5f, -0.5f },
-		{ 0.5f, -0.5f }
+		{ 0.0f, 0.5f },				
+		{ 0.5f, -0.5f },
+		{ -0.5f, -0.5f }
 	};
 
 	// Smart pointer to manage the vertex buffer's lifetime.
@@ -143,25 +144,44 @@ void Graphics::DrawTestTriangle()
 	const UINT offset = 0u;						// Offset to the start of the vertex data.
 	pContext->IASetVertexBuffers(0u, 1u, pVertexBuffer.GetAddressOf(), &stride, &offset);
 
-	// create vertex shader
-	wrl::ComPtr<ID3D11VertexShader> pVertexShader;
-	wrl::ComPtr<ID3DBlob> pBlob;
-	GFX_THROW_INFO(D3DReadFileToBlob(L"VertexShader.cso", &pBlob));
-	GFX_THROW_INFO(pDevice->CreateVertexShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pVertexShader));
-
-	// bind vertex shader
-	pContext->VSSetShader(pVertexShader.Get(), nullptr, 0u);
-
 	// create pixel shader
 	wrl::ComPtr<ID3D11PixelShader> pPixelShader;
+	wrl::ComPtr<ID3DBlob> pBlob;
 	GFX_THROW_INFO(D3DReadFileToBlob(L"PixelShader.cso", &pBlob));
 	GFX_THROW_INFO(pDevice->CreatePixelShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pPixelShader));
 
 	// bind pixel shader
 	pContext->PSSetShader(pPixelShader.Get(), nullptr, 0u);
 
+	// create vertex shader
+	wrl::ComPtr<ID3D11VertexShader> pVertexShader;
+	GFX_THROW_INFO(D3DReadFileToBlob(L"VertexShader.cso", &pBlob));
+	GFX_THROW_INFO(pDevice->CreateVertexShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pVertexShader));
+
+	// bind vertex shader
+	pContext->VSSetShader(pVertexShader.Get(), nullptr, 0u);
+
+	// input (vertex) layout (2d position only)
+	wrl::ComPtr<ID3D11InputLayout> pInputLayout;
+	const D3D11_INPUT_ELEMENT_DESC ied[] =
+	{
+		{ "Position",0,DXGI_FORMAT_R32G32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0 },
+	};
+	GFX_THROW_INFO(pDevice->CreateInputLayout(
+		ied, (UINT)std::size(ied),
+		pBlob->GetBufferPointer(),
+		pBlob->GetBufferSize(),
+		&pInputLayout
+	));
+
+	// bind vertex layout
+	pContext->IASetInputLayout(pInputLayout.Get());
+
 	// bind render target
 	pContext->OMSetRenderTargets(1u, pTarget.GetAddressOf(), nullptr);
+
+	// Set primitive topology to triangle list (groups of 3 vertices)
+	pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// configure viewport
 	D3D11_VIEWPORT vp;
@@ -271,7 +291,7 @@ const char* Graphics::InfoException::what() const noexcept
 }
 const char* Graphics::InfoException::GetType() const noexcept
 {
-	return "Chili Graphics Info Exception";
+	return "Directx Graphics Info Exception";
 }
 std::string Graphics::InfoException::GetErrorInfo() const noexcept
 {
