@@ -115,9 +115,9 @@ void Graphics::DrawTestTriangle()
 	//create vertex buffer (1 2d triangle at center of screen)
 	const Vertex vertices[] =
 	{
-		{ 0.0f, 0.5f },
-		{ 0.5f, -0.5f },
-		{ -0.5f, -0.5f }
+		{ 0.0f, 0.5f },		
+		{ -0.5f, -0.5f },
+		{ 0.5f, -0.5f }
 	};
 
 	// Smart pointer to manage the vertex buffer's lifetime.
@@ -148,8 +148,17 @@ void Graphics::DrawTestTriangle()
 	wrl::ComPtr<ID3DBlob> pBlob;
 	GFX_THROW_INFO(D3DReadFileToBlob(L"VertexShader.cso", &pBlob));
 	GFX_THROW_INFO(pDevice->CreateVertexShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pVertexShader));
+
 	// bind vertex shader
 	pContext->VSSetShader(pVertexShader.Get(), nullptr, 0u);
+
+	// create pixel shader
+	wrl::ComPtr<ID3D11PixelShader> pPixelShader;
+	GFX_THROW_INFO(D3DReadFileToBlob(L"PixelShader.cso", &pBlob));
+	GFX_THROW_INFO(pDevice->CreatePixelShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pPixelShader));
+
+	// bind pixel shader
+	pContext->PSSetShader(pPixelShader.Get(), nullptr, 0u);
 
 	GFX_THROW_INFO_ONLY(pContext->Draw((UINT)std::size(vertices), 0u));
 
