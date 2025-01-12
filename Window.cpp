@@ -1,7 +1,7 @@
 #include "Window.h"
 #include <sstream>
 #include "resource.h"
-#include "WindowsThrowMacros.h"
+#include "WindowThrowMacros.h"
 
 
 // Window Class Stuff
@@ -72,7 +72,6 @@ Window::Window(int width, int height, const char* name)
 		CW_USEDEFAULT, CW_USEDEFAULT, wr.right - wr.left, wr.bottom - wr.top,
 		nullptr, nullptr, WindowClass::GetInstance(), this
 	);
-
 	// check for error
 	if (hWnd == nullptr)
 	{
@@ -80,8 +79,7 @@ Window::Window(int width, int height, const char* name)
 	}
 	// newly created windows start off as hidden
 	ShowWindow(hWnd, SW_SHOWDEFAULT);
-
-	//create graphics object
+	// create graphics object
 	pGfx = std::make_unique<Graphics>(hWnd);
 }
 
@@ -222,7 +220,6 @@ LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noe
 	{
 		const POINTS pt = MAKEPOINTS(lParam);
 		mouse.OnLeftPressed(pt.x, pt.y);
-		// bring window to foreground on lclick client region
 		SetForegroundWindow(hWnd);
 		break;
 	}
@@ -271,7 +268,6 @@ LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noe
 
 
 // Window Exception Stuff
-
 std::string Window::Exception::TranslateErrorCode(HRESULT hr) noexcept
 {
 	char* pMsgBuf = nullptr;
@@ -294,12 +290,14 @@ std::string Window::Exception::TranslateErrorCode(HRESULT hr) noexcept
 	return errorString;
 }
 
+
 Window::HrException::HrException(int line, const char* file, HRESULT hr) noexcept
 	:
 	Exception(line, file),
 	hr(hr)
 {
 }
+
 const char* Window::HrException::what() const noexcept
 {
 	std::ostringstream oss;
@@ -311,9 +309,10 @@ const char* Window::HrException::what() const noexcept
 	whatBuffer = oss.str();
 	return whatBuffer.c_str();
 }
+
 const char* Window::HrException::GetType() const noexcept
 {
-	return "Directx Window Exception";
+	return "Chili Window Exception";
 }
 
 HRESULT Window::HrException::GetErrorCode() const noexcept
@@ -329,5 +328,5 @@ std::string Window::HrException::GetErrorDescription() const noexcept
 
 const char* Window::NoGfxException::GetType() const noexcept
 {
-	return "Directx Window Exception [No Graphics]";
+	return "Chili Window Exception [No Graphics]";
 }
