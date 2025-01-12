@@ -163,7 +163,7 @@
     <ClInclude Include="VertexShader.h" />
     <ClInclude Include="Window.h" />
     <ClInclude Include="WindowsMessageMap.h" />
-    <ClInclude Include="WindowThrowMacros.h" />
+    <ClInclude Include="WindowsThrowMacros.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App.cpp" />

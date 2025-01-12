@@ -69,7 +69,7 @@
     <ClInclude Include="DxgiInfoManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="WindowThrowMacros.h">
+    <ClInclude Include="WindowsThrowMacros.h">
       <Filter>Header Files\Macros</Filter>
     </ClInclude>
     <ClInclude Include="GraphicsThrowMacros.h">

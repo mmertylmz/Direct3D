@@ -1,7 +1,7 @@
 #include "Window.h"
 #include <sstream>
 #include "resource.h"
-#include "WindowThrowMacros.h"
+#include "WindowsThrowMacros.h"
 
 
 // Window Class Stuff
