@@ -8,12 +8,13 @@
 namespace wrl = Microsoft::WRL;
 namespace dx = DirectX;
 
-#pragma comment(lib, "d3d11.lib") //prevent linker error
-#pragma comment(lib, "D3DCompiler.lib")
+#pragma comment(lib,"d3d11.lib")
+#pragma comment(lib,"D3DCompiler.lib")
 
 // graphics exception checking/throwing macros (some with dxgi infos)
 #define GFX_EXCEPT_NOINFO(hr) Graphics::HrException( __LINE__,__FILE__,(hr) )
 #define GFX_THROW_NOINFO(hrcall) if( FAILED( hr = (hrcall) ) ) throw Graphics::HrException( __LINE__,__FILE__,hr )
+
 #ifndef NDEBUG
 #define GFX_EXCEPT(hr) Graphics::HrException( __LINE__,__FILE__,(hr),infoManager.GetMessages() )
 #define GFX_THROW_INFO(hrcall) infoManager.Set(); if( FAILED( hr = (hrcall) ) ) throw GFX_EXCEPT(hr)
@@ -26,63 +27,98 @@ namespace dx = DirectX;
 #define GFX_THROW_INFO_ONLY(call) (call)
 #endif
 
+
 Graphics::Graphics(HWND hWnd)
 {
 	DXGI_SWAP_CHAIN_DESC sd = {};
-	sd.BufferDesc.Width = 0; // The width of the render target (default: match window size)
-	sd.BufferDesc.Height = 0; //The height of the render target (default: match window size)
-	sd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; //The format for the back buffer (8-bit BGR + alpha channel)
-	sd.BufferDesc.RefreshRate.Numerator = 0; //Refresh rate numerator (0 for automatic configuration)
-	sd.BufferDesc.RefreshRate.Denominator = 0; //Refresh rate denominator (0 for automatic configuration) => Manuel Example: Numerator = 60; Denominator = 1 => 60/1 = 60 Hz
-	sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED; //Scaling mode for the buffer (unspecified, default behaviour)
+	sd.BufferDesc.Width = 0;
+	sd.BufferDesc.Height = 0;
+	sd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	sd.BufferDesc.RefreshRate.Numerator = 0;
+	sd.BufferDesc.RefreshRate.Denominator = 0;
+	sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
 	sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-	sd.SampleDesc.Count = 1; //Number of multisample counts (1 means no multisampling)
-	sd.SampleDesc.Quality = 0; //Quality level of multisampling (0 for default)
-	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; //Specifies the buffer usage (used as a render target)
-	sd.BufferCount = 1; //Number of buffers (1 for double buffering)
-	sd.OutputWindow = hWnd; //Handle to the window where Directx output will be displayed
-	sd.Windowed = TRUE; //Window mode (TRUE for windowed mode, FALSE for fullscreen mode)
-	sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; //Specifies the swap effect (discard the back buffer content)
-	sd.Flags = 0; //Additional flags for the swap chain (none specified here)
+	sd.SampleDesc.Count = 1;
+	sd.SampleDesc.Quality = 0;
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	sd.BufferCount = 1;
+	sd.OutputWindow = hWnd;
+	sd.Windowed = TRUE;
+	sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+	sd.Flags = 0;
 
 	UINT swapCreateFlags = 0u;
 #ifndef NDEBUG
 	swapCreateFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-	//for checking results of d3d functions
+	// for checking results of d3d functions
 	HRESULT hr;
 
-	//create device and front/back buffers, and swap chain and rendering context
+	// create device and front/back buffers, and swap chain and rendering context
 	GFX_THROW_INFO(D3D11CreateDeviceAndSwapChain(
-		nullptr,                     // Adapter: nullptr means the default adapter will be used.
-		D3D_DRIVER_TYPE_HARDWARE,    // DriverType: Use the GPU hardware for rendering.
-		nullptr,                     // Software: Not used because hardware rendering is specified.
-		swapCreateFlags,             // Flags: No special flags for device creation.
-		nullptr,                     // FeatureLevels: Use the default set of feature levels.
-		0,                           // FeatureLevelsCount: Number of elements in the FeatureLevels array (0 here).
-		D3D11_SDK_VERSION,           // SDKVersion: Specifies the Direct3D 11 version.
-		&sd,                         // SwapChainDesc: Address of the DXGI_SWAP_CHAIN_DESC structure.
-		&pSwap,                      // SwapChain: Address to receive the created swap chain.
-		&pDevice,                    // Device: Address to receive the created Direct3D device.
-		nullptr,                     // FeatureLevel: Address to receive the actual feature level used (not needed here).
-		&pContext                    // ImmediateContext: Address to receive the created device context.
+		nullptr,
+		D3D_DRIVER_TYPE_HARDWARE,
+		nullptr,
+		swapCreateFlags,
+		nullptr,
+		0,
+		D3D11_SDK_VERSION,
+		&sd,
+		&pSwap,
+		&pDevice,
+		nullptr,
+		&pContext
 	));
-
-	//gain access to texture subresource in swap chain (back buffer)
+	// gain access to texture subresource in swap chain (back buffer)
 	wrl::ComPtr<ID3D11Resource> pBackBuffer;
 	GFX_THROW_INFO(pSwap->GetBuffer(0, __uuidof(ID3D11Resource), &pBackBuffer));
 	GFX_THROW_INFO(pDevice->CreateRenderTargetView(pBackBuffer.Get(), nullptr, &pTarget));
+
+	// create depth stensil state
+	D3D11_DEPTH_STENCIL_DESC dsDesc = {};
+	dsDesc.DepthEnable = TRUE;
+	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	wrl::ComPtr<ID3D11DepthStencilState> pDSState;
+	GFX_THROW_INFO(pDevice->CreateDepthStencilState(&dsDesc, &pDSState));
+
+	// bind depth state
+	pContext->OMSetDepthStencilState(pDSState.Get(), 1u);
+
+	// create depth stensil texture
+	wrl::ComPtr<ID3D11Texture2D> pDepthStencil;
+	D3D11_TEXTURE2D_DESC descDepth = {};
+	descDepth.Width = 800u;
+	descDepth.Height = 600u;
+	descDepth.MipLevels = 1u;
+	descDepth.ArraySize = 1u;
+	descDepth.Format = DXGI_FORMAT_D32_FLOAT;
+	descDepth.SampleDesc.Count = 1u;
+	descDepth.SampleDesc.Quality = 0u;
+	descDepth.Usage = D3D11_USAGE_DEFAULT;
+	descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	GFX_THROW_INFO(pDevice->CreateTexture2D(&descDepth, nullptr, &pDepthStencil));
+
+	// create view of depth stensil texture
+	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV = {};
+	descDSV.Format = DXGI_FORMAT_D32_FLOAT;
+	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	descDSV.Texture2D.MipSlice = 0u;
+	GFX_THROW_INFO(pDevice->CreateDepthStencilView(
+		pDepthStencil.Get(), &descDSV, &pDSV
+	));
+
+	// bind depth stensil view to OM
+	pContext->OMSetRenderTargets(1u, pTarget.GetAddressOf(), pDSV.Get());
 }
 
 void Graphics::EndFrame()
 {
 	HRESULT hr;
-
 #ifndef NDEBUG
 	infoManager.Set();
 #endif
-
 	if (FAILED(hr = pSwap->Present(1u, 0u)))
 	{
 		if (hr == DXGI_ERROR_DEVICE_REMOVED)
@@ -98,16 +134,13 @@ void Graphics::EndFrame()
 
 void Graphics::ClearBuffer(float red, float green, float blue) noexcept
 {
-	// The fourth value (1.0f) represents the alpha channel (fully opaque).
-	const float color[] = { red, green, blue, 1.0f };
-
-	// Clears the render target (the area where rendering is performed) with the specified color.
+	const float color[] = { red,green,blue,1.0f };
 	pContext->ClearRenderTargetView(pTarget.Get(), color);
+	pContext->ClearDepthStencilView(pDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0u);
 }
 
-void Graphics::DrawTestTriangle(float angle, float x, float y)
+void Graphics::DrawTestTriangle(float angle, float x, float z)
 {
-	namespace wrl = Microsoft::WRL;
 	HRESULT hr;
 
 	struct Vertex
@@ -117,11 +150,11 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 			float x;
 			float y;
 			float z;
-		} pos;		
+		} pos;
 	};
 
-	//create vertex buffer (1 2d triangle at center of screen)
-	const Vertex vertices[] =
+	// create vertex buffer (1 2d triangle at center of screen)
+	Vertex vertices[] =
 	{
 		{ -1.0f,-1.0f,-1.0f	 },
 		{ 1.0f,-1.0f,-1.0f	 },
@@ -132,32 +165,26 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 		{ -1.0f,1.0f,1.0f	 },
 		{ 1.0f,1.0f,1.0f	 },
 	};
-
-	// Smart pointer to manage the vertex buffer's lifetime.
 	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
-
-	// Describe the buffer for the GPU to understand its purpose and layout.
 	D3D11_BUFFER_DESC bd = {};
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;	// Specifies that this buffer is a vertex buffer.
-	bd.Usage = D3D11_USAGE_DEFAULT;				// GPU will primarily access this buffer.
-	bd.CPUAccessFlags = 0u;						// No CPU access to this buffer. (0u)
-	bd.MiscFlags = 0u;							// No miscellaneous flags. (0u)
-	bd.ByteWidth = sizeof(vertices);			// Total size of the buffer in bytes.
-	bd.StructureByteStride = sizeof(Vertex);	// Size of each vertex in the buffer.
-
-	// Provide the initial data to fill the buffer (the triangle vertices).
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.CPUAccessFlags = 0u;
+	bd.MiscFlags = 0u;
+	bd.ByteWidth = sizeof(vertices);
+	bd.StructureByteStride = sizeof(Vertex);
 	D3D11_SUBRESOURCE_DATA sd = {};
-	sd.pSysMem = vertices;						// Pointer to the vertex data in system memory.
-
+	sd.pSysMem = vertices;
 	GFX_THROW_INFO(pDevice->CreateBuffer(&bd, &sd, &pVertexBuffer));
 
-	// Bind the vertex buffer to the Input Assembler stage of the GPU pipeline.
-	const UINT stride = sizeof(Vertex);			// Size of a single vertex in the buffer.
-	const UINT offset = 0u;						// Offset to the start of the vertex data.
+	// Bind vertex buffer to pipeline
+	const UINT stride = sizeof(Vertex);
+	const UINT offset = 0u;
 	pContext->IASetVertexBuffers(0u, 1u, pVertexBuffer.GetAddressOf(), &stride, &offset);
 
+
 	// create index buffer
-	const unsigned short indices[] = 
+	const unsigned short indices[] =
 	{
 		0,2,1, 2,3,1,
 		1,3,5, 3,7,5,
@@ -166,7 +193,6 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 		0,4,2, 2,4,6,
 		0,1,4, 1,5,4
 	};
-
 	wrl::ComPtr<ID3D11Buffer> pIndexBuffer;
 	D3D11_BUFFER_DESC ibd = {};
 	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
@@ -175,15 +201,15 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 	ibd.MiscFlags = 0u;
 	ibd.ByteWidth = sizeof(indices);
 	ibd.StructureByteStride = sizeof(unsigned short);
-	
 	D3D11_SUBRESOURCE_DATA isd = {};
 	isd.pSysMem = indices;
 	GFX_THROW_INFO(pDevice->CreateBuffer(&ibd, &isd, &pIndexBuffer));
 
-	//bind index buffer
+	// bind index buffer
 	pContext->IASetIndexBuffer(pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0u);
 
-	//create constant buffer for transformation matrix
+
+	// create constant buffer for transformation matrix
 	struct ConstantBuffer
 	{
 		dx::XMMATRIX transform;
@@ -194,21 +220,19 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 			dx::XMMatrixTranspose(
 				dx::XMMatrixRotationZ(angle) *
 				dx::XMMatrixRotationX(angle) *
-				dx::XMMatrixTranslation(x,y,4.0f) *
-				dx::XMMatrixPerspectiveLH(1.0f, 3.0f / 4.0f, 0.5f, 10.0f)
+				dx::XMMatrixTranslation(x,0.0f,z + 4.0f) *
+				dx::XMMatrixPerspectiveLH(1.0f,3.0f / 4.0f,0.5f,10.0f)
 			)
 		}
 	};
-
 	wrl::ComPtr<ID3D11Buffer> pConstantBuffer;
-	D3D11_BUFFER_DESC cbd = {};
+	D3D11_BUFFER_DESC cbd;
 	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	cbd.Usage = D3D11_USAGE_DYNAMIC;
 	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	cbd.MiscFlags = 0u;
 	cbd.ByteWidth = sizeof(cb);
 	cbd.StructureByteStride = 0u;
-
 	D3D11_SUBRESOURCE_DATA csd = {};
 	csd.pSysMem = &cb;
 	GFX_THROW_INFO(pDevice->CreateBuffer(&cbd, &csd, &pConstantBuffer));
@@ -216,7 +240,8 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 	// bind constant buffer to vertex shader
 	pContext->VSSetConstantBuffers(0u, 1u, pConstantBuffer.GetAddressOf());
 
-	//lookup table for cube face colors
+
+	// lookup table for cube face colors
 	struct ConstantBuffer2
 	{
 		struct
@@ -227,7 +252,6 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 			float a;
 		} face_colors[6];
 	};
-
 	const ConstantBuffer2 cb2 =
 	{
 		{
@@ -239,7 +263,6 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 			{0.0f,1.0f,1.0f},
 		}
 	};
-
 	wrl::ComPtr<ID3D11Buffer> pConstantBuffer2;
 	D3D11_BUFFER_DESC cbd2;
 	cbd2.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
@@ -256,6 +279,7 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 	pContext->PSSetConstantBuffers(0u, 1u, pConstantBuffer2.GetAddressOf());
 
 
+
 	// create pixel shader
 	wrl::ComPtr<ID3D11PixelShader> pPixelShader;
 	wrl::ComPtr<ID3DBlob> pBlob;
@@ -265,6 +289,7 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 	// bind pixel shader
 	pContext->PSSetShader(pPixelShader.Get(), nullptr, 0u);
 
+
 	// create vertex shader
 	wrl::ComPtr<ID3D11VertexShader> pVertexShader;
 	GFX_THROW_INFO(D3DReadFileToBlob(L"VertexShader.cso", &pBlob));
@@ -272,6 +297,7 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 
 	// bind vertex shader
 	pContext->VSSetShader(pVertexShader.Get(), nullptr, 0u);
+
 
 	// input (vertex) layout (2d position only)
 	wrl::ComPtr<ID3D11InputLayout> pInputLayout;
@@ -289,11 +315,10 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 	// bind vertex layout
 	pContext->IASetInputLayout(pInputLayout.Get());
 
-	// bind render target
-	pContext->OMSetRenderTargets(1u, pTarget.GetAddressOf(), nullptr);
 
 	// Set primitive topology to triangle list (groups of 3 vertices)
 	pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
 
 	// configure viewport
 	D3D11_VIEWPORT vp;
@@ -305,9 +330,10 @@ void Graphics::DrawTestTriangle(float angle, float x, float y)
 	vp.TopLeftY = 0;
 	pContext->RSSetViewports(1u, &vp);
 
-	GFX_THROW_INFO_ONLY(pContext->Draw((UINT)std::size(vertices), 0u));
 
+	GFX_THROW_INFO_ONLY(pContext->DrawIndexed((UINT)std::size(indices), 0u, 0u));
 }
+
 
 // Graphics exception stuff
 Graphics::HrException::HrException(int line, const char* file, HRESULT hr, std::vector<std::string> infoMsgs) noexcept
@@ -327,6 +353,7 @@ Graphics::HrException::HrException(int line, const char* file, HRESULT hr, std::
 		info.pop_back();
 	}
 }
+
 const char* Graphics::HrException::what() const noexcept
 {
 	std::ostringstream oss;
@@ -346,7 +373,7 @@ const char* Graphics::HrException::what() const noexcept
 
 const char* Graphics::HrException::GetType() const noexcept
 {
-	return "Directx Graphics Exception";
+	return "Chili Graphics Exception";
 }
 
 HRESULT Graphics::HrException::GetErrorCode() const noexcept
@@ -371,11 +398,11 @@ std::string Graphics::HrException::GetErrorInfo() const noexcept
 	return info;
 }
 
+
 const char* Graphics::DeviceRemovedException::GetType() const noexcept
 {
-	return "Directx Graphics Exception [Device Removed] (DXGI_ERROR_DEVICE_REMOVED)";
+	return "Chili Graphics Exception [Device Removed] (DXGI_ERROR_DEVICE_REMOVED)";
 }
-
 Graphics::InfoException::InfoException(int line, const char* file, std::vector<std::string> infoMsgs) noexcept
 	:
 	Exception(line, file)
@@ -392,6 +419,8 @@ Graphics::InfoException::InfoException(int line, const char* file, std::vector<s
 		info.pop_back();
 	}
 }
+
+
 const char* Graphics::InfoException::what() const noexcept
 {
 	std::ostringstream oss;
@@ -401,10 +430,12 @@ const char* Graphics::InfoException::what() const noexcept
 	whatBuffer = oss.str();
 	return whatBuffer.c_str();
 }
+
 const char* Graphics::InfoException::GetType() const noexcept
 {
-	return "Directx Graphics Info Exception";
+	return "Chili Graphics Info Exception";
 }
+
 std::string Graphics::InfoException::GetErrorInfo() const noexcept
 {
 	return info;

@@ -61,6 +61,10 @@ private:
 	Microsoft::WRL::ComPtr<IDXGISwapChain> pSwap; // Manages the swap chain for presenting frames to the screen.
 	Microsoft::WRL::ComPtr<ID3D11DeviceContext> pContext;  // Executes rendering commands on the GPU.
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> pTarget; // Represents the render target (back buffer) where the GPU draws.
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> pDSV;
+	// Represents the depth-stencil view, which is used for depth testing and stencil testing.
+	// Depth testing ensures that pixels closer to the camera overwrite farther ones (hidden surface removal).
+	// Stencil testing allows masking specific parts of the screen during rendering.
 
 };
 
